@@ -92,6 +92,17 @@ namespace Hospitality
             diaOption2.resolveTree = true;
             diaNode.options.Add(diaOption2);
 
+            if (!map.listerBuildings.AllBuildingsColonistOfClass<Building_GuestBed>().Any())
+            {
+                DiaOption diaOption3 = new DiaOption("VisitorsArrivedRefuseUntilBeds".Translate());
+                diaOption3.action = () => {
+                    GuestUtility.RefuseGuestsUntilWeHaveBeds(map);
+                    refuse();
+                };
+                diaOption3.resolveTree = true;
+                diaNode.options.Add(diaOption3);
+            }
+
             var location = ((MapParent) map.ParentHolder).Label;
             string title = "VisitorsArrivedTitle".Translate(location, spawnDirection.LabelShort());
             Find.WindowStack.Add(new Dialog_NodeTree(diaNode, true, true, title));
@@ -136,10 +147,17 @@ namespace Hospitality
 
             if (Settings.disableGuests || map.mapPawns.ColonistCount == 0)
             {
-                GuestUtility.PlanNewVisit(map, Rand.Range(5f, 25f), parms.faction);
+                GenericUtility.PlanNewVisit(map, Rand.Range(5f, 25f), parms.faction);
             }
             else
             {
+                // Did the player refuse guests until beds are made and there are no beds yet?
+                if (!GuestUtility.BedCheck(map))
+                {
+                    GenericUtility.PlanNewVisit(map, Rand.Range(2f, 5f), parms.faction);
+                    return true;
+                }
+
                 string reasons;
                 // We check here instead of CanFireNow, so we can reschedule the visit.
                 // Any reasons not to come?
@@ -148,13 +166,14 @@ namespace Hospitality
                     // No, spawn
                     return SpawnGroup(parms, map);
                 }
+
                 // Yes, ask the player for permission
                 var spawnDirection = GetSpawnDirection(map, parms.spawnCenter);
                 ShowAskMayComeDialog(parms.faction, map, reasons, spawnDirection,
                     // Permission, spawn
                     () => SpawnGroup(parms, map),
                     // No permission, come again later
-                    () => { GuestUtility.PlanNewVisit(map, Rand.Range(2f, 5f), parms.faction); });
+                    () => { GenericUtility.PlanNewVisit(map, Rand.Range(2f, 5f), parms.faction); });
             }
             return true;
         }
@@ -189,7 +208,7 @@ namespace Hospitality
             catch (Exception e)
             {
                 Log.ErrorOnce("Something failed when spawning visitors: " + e.Message + "\n" + e.StackTrace, 464365853);
-                GuestUtility.PlanNewVisit(map, Rand.Range(1f, 3f), parms.faction);
+                GenericUtility.PlanNewVisit(map, Rand.Range(1f, 3f), parms.faction);
                 return true; // be gone, event
             }
             if (visitors == null || visitors.Count == 0) return false;
@@ -214,7 +233,7 @@ namespace Hospitality
                 {
                     visitor.DestroyOrPassToWorld();
                 }
-                GuestUtility.PlanNewVisit(map, Rand.Range(1f, 3f), parms.faction);
+                GenericUtility.PlanNewVisit(map, Rand.Range(1f, 3f), parms.faction);
                 return false;
             }
             

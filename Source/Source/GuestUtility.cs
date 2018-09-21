@@ -15,7 +15,6 @@ namespace Hospitality
     internal static class GuestUtility
     {
         public static DutyDef relaxDef = DefDatabase<DutyDef>.GetNamed("Relax");
-        public static DutyDef travelDef = DutyDefOf.TravelOrLeave;
 
         private static readonly string labelRecruitSuccess = "LetterLabelMessageRecruitSuccess".Translate(); // from core
         private static readonly string labelRecruitFactionAnger = "LetterLabelRecruitFactionAnger".Translate();
@@ -43,7 +42,7 @@ namespace Hospitality
 
         public static bool IsTraveling(this Pawn pawn)
         {
-            return pawn.mindState.duty != null && pawn.mindState.duty.def == travelDef;
+            return pawn.mindState.duty != null && pawn.mindState.duty.def == DutyDefOf.TravelOrLeave;
         }
 
         public static bool MayBuy(this Pawn pawn)
@@ -595,18 +594,6 @@ namespace Hospitality
             return comp.boughtItems.Contains(thing.thingIDNumber);
         }
 
-        public static void PlanNewVisit(IIncidentTarget map, float afterDays, Faction faction = null)
-        {
-            var realMap = map as Map;
-            if (realMap == null) return;
-
-            var incidentParms = StorytellerUtility.DefaultParmsNow(IncidentCategoryDefOf.FactionArrival, realMap);
-
-            if(faction != null) incidentParms.faction = faction;
-            var incident = new FiringIncident(IncidentDefOf.VisitorGroup, null, incidentParms);
-            Hospitality_MapComponent.Instance(realMap).QueueIncident(incident, afterDays);
-        }
-
         public static bool IsInGuestZone(this Pawn p, Thing s)
         {
             var area = p.GetGuestArea();
@@ -812,10 +799,10 @@ namespace Hospitality
         public static void OnLostEntireGroup(Lord lord)
         {
             const int penalty = -20;
-            Log.Message("Lost group");
+            //Log.Message("Lost group");
             if (lord != null && lord.faction != null)
             {
-                Log.Message("Had lord and faction");
+                //Log.Message("Had lord and faction");
                 lord.faction.TryAffectGoodwillWith(Faction.OfPlayer, penalty, false);
                 if (lord.faction.leader == null)
                 {
@@ -828,6 +815,28 @@ namespace Hospitality
                     Find.LetterStack.ReceiveLetter(labelRecruitFactionChiefAnger, message, LetterDefOf.NegativeEvent, GlobalTargetInfo.Invalid, lord.faction);
                 }
             }
+        }
+
+        public static void RefuseGuestsUntilWeHaveBeds(Map map)
+        {
+            if (map == null) return;
+
+            var mapComp = Hospitality_MapComponent.Instance(map);
+            mapComp.refuseGuestsUntilWeHaveBeds = true;
+            LessonAutoActivator.TeachOpportunity(ConceptDef.Named("GuestBeds"), null, OpportunityType.Important);
+        }
+
+        public static bool BedCheck(Map map)
+        {
+            if (map == null) return false;
+            var mapComp = Hospitality_MapComponent.Instance(map);
+
+            if (!mapComp.refuseGuestsUntilWeHaveBeds) return true;
+            if (!map.listerBuildings.AllBuildingsColonistOfClass<Building_GuestBed>().Any()) return false;
+
+            // We have beds now!
+            mapComp.refuseGuestsUntilWeHaveBeds = false;
+            return true;
         }
     }
 }
